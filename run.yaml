@@ -29,7 +29,8 @@ spec:
 
   # PipelineRun params take only `name` and `value`. The CRD rejects `type`
   # and `description` here - those are declared once on the Pipeline side in
-  # tekton/pipeline.yaml.
+  # tekton/pipeline.yaml. These names must match the Pipeline's params
+  # exactly, otherwise the PipelineRun is rejected as invalid.
   params:
     - name: repo-url
       # Repository the clone task fetches.
@@ -44,12 +45,6 @@ spec:
     - name: push-image
       # Set to "true" to also push to IBM Cloud Container Registry.
       value: "false"
-    - name: ibmcr-registry
-      # IBM Cloud Registry host, e.g. us-south.icr.io.
-      value: ""
-    - name: ibmcr-namespace
-      # IBM Cloud Registry namespace.
-      value: ""
 
   workspaces:
     - name: source
