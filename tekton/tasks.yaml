@@ -1,0 +1,64 @@
+# The two new Tekton task definitions: npm and Jasmine.
+#
+#   npminstall  - installs Node dependencies with npm ci
+#   tests       - runs the Jasmine unit tests
+#
+# Apply with:  oc apply -f tekton/tasks.yaml
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: npminstall
+  labels:
+    app.kubernetes.io/part-of: tax-calculator
+spec:
+  description: Install Node dependencies with npm ci
+  params:
+    - name: source-dir
+      description: Directory holding package.json and package-lock.json
+      type: string
+      default: /workspace/source
+  workspaces:
+    - name: source
+  steps:
+    - name: npm-ci
+      image: node:20
+      workingDir: $(params.source-dir)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "Node: $(node --version)  npm: $(npm --version)"
+        echo "=== npm ci ==="
+        npm ci
+      env:
+        - name: HOME
+          value: /tekton/home
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: tests
+  labels:
+    app.kubernetes.io/part-of: tax-calculator
+spec:
+  description: Run the Jasmine unit tests
+  params:
+    - name: source-dir
+      description: Directory holding package.json
+      type: string
+      default: /workspace/source
+  workspaces:
+    - name: source
+  steps:
+    - name: jasmine
+      image: node:20
+      workingDir: $(params.source-dir)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "=== npm test (7-spec acceptance suite) ==="
+        npm test
+        echo "=== npm run test:regression (41-spec suite) ==="
+        npm run test:regression
+      env:
+        - name: HOME
+          value: /tekton/home

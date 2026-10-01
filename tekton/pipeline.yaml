@@ -1,0 +1,106 @@
+# The Tax Calculator delivery pipeline.
+#
+# Steps: clone -> npminstall -> tests -> build -> push -> deploy
+#
+# The brief asks for npminstall, tests and build; clone-source, push-image
+# and deploy complete the delivery path.
+#
+# Apply with:  oc apply -f tekton/pipeline.yaml
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: tax-calculator-pipeline
+  labels:
+    app.kubernetes.io/part-of: tax-calculator
+spec:
+  description: Build, test, publish and deploy the Tax Calculator
+  params:
+    - name: repo-url
+      description: Repository the clone task fetches
+      type: string
+      default: https://github.com/MarkNwilliam/tax-calculator.git
+    - name: revision
+      description: Branch, tag or commit to deploy
+      type: string
+      default: main
+    - name: image-url
+      description: Registry reference the build task pushes to
+      type: string
+      default: kind-registry:5000/tax-calculator:1.0.0
+    - name: push-image
+      description: Set to "true" to also push to IBM Cloud Container Registry
+      type: string
+      default: "false"
+  workspaces:
+    - name: source
+  results:
+    - name: deployed-url
+      description: Where the deployed application is reachable
+      value: $(tasks.deploy.results.url)
+  tasks:
+    # Fills the shared workspace everything else reads, so it must be first.
+    - name: clone-source
+      taskRef:
+        name: clone-source
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.revision)
+
+    # --- npm install ---
+    - name: npminstall
+      taskRef:
+        name: npminstall
+      runAfter: [clone-source]
+      workspaces:
+        - name: source
+          workspace: source
+
+    # --- Jasmine tests ---
+    - name: tests
+      taskRef:
+        name: tests
+      runAfter: [npminstall]
+      workspaces:
+        - name: source
+          workspace: source
+
+    # --- build the image ---
+    - name: build
+      taskRef:
+        name: build
+      runAfter: [tests]
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: image-url
+          value: $(params.image-url)
+
+    - name: push-image
+      taskRef:
+        name: push-image
+      runAfter: [build]
+      # Skipped unless IBM Cloud credentials are supplied.
+      when:
+        - input: $(params.push-image)
+          operator: in
+          values: ["true"]
+      params:
+        - name: image-url
+          value: $(params.image-url)
+
+    - name: deploy
+      taskRef:
+        name: deploy
+      runAfter: [build]
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: image-url
+          value: $(params.image-url)
